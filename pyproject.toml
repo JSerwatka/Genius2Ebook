@@ -1,0 +1,10 @@
+[project]
+name = "genius2ebook"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ebooklib>=0.18",
+    "lyricsgenius>=3.2.0",
+]
