@@ -168,7 +168,6 @@ def create_epub(album, output_format="epub"):
     """
     intro.content = intro_content
     book.add_item(intro)
-    chapters.append(intro)
     spine.append(intro)
     
     # Create a chapter for each song
