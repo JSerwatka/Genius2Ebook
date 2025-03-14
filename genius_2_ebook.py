@@ -20,6 +20,7 @@ from datetime import datetime
 import lyricsgenius as lg
 from ebooklib import epub
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 
 
 def clean_html(html_text):
@@ -330,10 +331,11 @@ def create_epub(album, output_format="epub"):
 
 
 def main():
+    load_dotenv() 
     parser = argparse.ArgumentParser(description="Generate an ebook of album lyrics and annotations")
     parser.add_argument("artist", help="Artist name")
     parser.add_argument("album", help="Album name")
-    parser.add_argument("--api-key", help="Genius API key", default=os.environ.get("GENIUS_API_KEY"))
+    parser.add_argument("--api-key", help="Genius API key", default= os.getenv("GENIUS_API_KEY"))
     parser.add_argument("--format", choices=["epub", "mobi"], default="epub", 
                         help="Output format (epub or mobi)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
