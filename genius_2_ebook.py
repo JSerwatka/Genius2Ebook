@@ -96,10 +96,13 @@ def get_album_data(artist_name, album_name, api_key):
                 song = genius.search_song(track.song.title, album.artist.name)
                 
                 if song:
-                    # annotations = genius.song_annotations(song.id)
+                    annotations = genius.song_annotations(song.id)
                     
                     # Attach the song object with lyrics to the track
                     track.song = song
+                    track.annotations = annotations 
+                    
+                    break # DEBUG: TODO: remove
             except Exception as e:
                 print(f"Error fetching lyrics for {track.song.title}: {e}")
         
@@ -182,22 +185,23 @@ def create_epub(album, output_format="epub"):
         
         # Get annotations if available
         annotations = []
-        try:
-            # Get song annotations from Genius
-            song_info = track.song
-            referents = song_info.referents if hasattr(song_info, 'referents') else []
+        # TODO handle annotations
+        # try:
+        #     # Get song annotations from Genius
+        #     song_info = track.song
+        #     referents = song_info.referents if hasattr(song_info, 'referents') else []
             
-            for ref in referents:
-                for annotation in ref.annotations:
-                    if hasattr(annotation, 'body') and annotation.body and annotation.body.get('plain'):
-                        fragment = ref.fragment if hasattr(ref, 'fragment') else "Unknown lyric"
-                        body = annotation.body.get('plain', 'No annotation text')
-                        annotations.append({
-                            'fragment': fragment,
-                            'body': clean_html(body)
-                        })
-        except Exception as e:
-            print(f"Error getting annotations for {track.song.title}: {e}")
+        #     for ref in referents:
+        #         for annotation in ref.annotations:
+        #             if hasattr(annotation, 'body') and annotation.body and annotation.body.get('plain'):
+        #                 fragment = ref.fragment if hasattr(ref, 'fragment') else "Unknown lyric"
+        #                 body = annotation.body.get('plain', 'No annotation text')
+        #                 annotations.append({
+        #                     'fragment': fragment,
+        #                     'body': clean_html(body)
+        #                 })
+        # except Exception as e:
+        #     print(f"Error getting annotations for {track.song.title}: {e}")
         
         # Build chapter content
         chapter_content = f"""
@@ -219,22 +223,22 @@ def create_epub(album, output_format="epub"):
         """
         chapter_content += lyrics_html
         
-        # Add annotations section if there are any
-        if annotations:
-            chapter_content += """
-            <h2>Annotations</h2>
-            <div class="annotations">
-            """
+        # TODO: check if needed: Add annotations section if there are any
+        # if annotations:
+        #     chapter_content += """
+        #     <h2>Annotations</h2>
+        #     <div class="annotations">
+        #     """
             
-            for i, annotation in enumerate(annotations, 1):
-                chapter_content += f"""
-                <div class="annotation">
-                    <h3>Note {i}: "{annotation['fragment']}"</h3>
-                    <p>{annotation['body']}</p>
-                </div>
-                """
+        #     for i, annotation in enumerate(annotations, 1):
+        #         chapter_content += f"""
+        #         <div class="annotation">
+        #             <h3>Note {i}: "{annotation['fragment']}"</h3>
+        #             <p>{annotation['body']}</p>
+        #         </div>
+        #         """
             
-            chapter_content += "</div>"
+        #     chapter_content += "</div>"
         
         chapter_content += """
         </body>
