@@ -86,25 +86,22 @@ def get_album_data(artist_name, album_name, api_key):
         print(f"Found album: {album.name} by {album.artist.name}")
         print("Fetching track lyrics...")
         
-        # Check which method to use for getting track lyrics (API changes in different versions)
-        if hasattr(album, 'get_tracks_lyrics') and callable(getattr(album, 'get_tracks_lyrics')):
-            album.get_tracks_lyrics(verbose=True)
-        else:
-            # Alternative method for newer lyricsgenius versions
-            print("Using alternative method to fetch lyrics...")
-            for track in album.tracks:
-                if not hasattr(track, 'song') or not track.song:
-                    continue
+        for track in album.tracks:
+            if not hasattr(track, 'song') or not track.song:
+                continue
+                
+            print(f"Fetching lyrics for: {track.song.title}")
+            try:
+                # Fetch the song with lyrics
+                song = genius.search_song(track.song.title, album.artist.name)
+                
+                if song:
+                    # annotations = genius.song_annotations(song.id)
                     
-                print(f"Fetching lyrics for: {track.song.title}")
-                try:
-                    # Fetch the song with lyrics
-                    song = genius.search_song(track.song.title, album.artist.name)
-                    if song:
-                        # Attach the song object with lyrics to the track
-                        track.song = song
-                except Exception as e:
-                    print(f"Error fetching lyrics for {track.song.title}: {e}")
+                    # Attach the song object with lyrics to the track
+                    track.song = song
+            except Exception as e:
+                print(f"Error fetching lyrics for {track.song.title}: {e}")
         
         # Count tracks with lyrics
         tracks_with_lyrics = sum(1 for track in album.tracks if hasattr(track, 'song') and 
@@ -137,7 +134,7 @@ def create_epub(album, output_format="epub"):
     # Create chapters
     chapters = []
     spine = ['nav']
-    
+
     # Add cover
     if hasattr(album, 'cover_art_url') and album.cover_art_url:
         try:
@@ -163,7 +160,7 @@ def create_epub(album, output_format="epub"):
     <body>
         <h1>{album.name}</h1>
         <h2>by {album.artist.name}</h2>
-        <p>Released: {album.release_date if hasattr(album, 'release_date') else 'Unknown'}</p>
+        <p>Released: {album.release_date_components.strftime("%d %B %Y") if hasattr(album, 'release_date_components') else 'Unknown'} <!-- Annotation: This is a note. --></p>
         <p>This ebook contains lyrics and annotations for all songs in this album.</p>
         <p>All content is sourced from Genius.com.</p>
     </body>
