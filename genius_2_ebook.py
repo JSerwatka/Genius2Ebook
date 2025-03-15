@@ -2,7 +2,7 @@
 """
 Album Lyrics to Ebook Generator
 
-This script creates an ebook (EPUB or MOBI) containing lyrics and annotations
+This script creates an ebook (EPUB or AZW3) containing lyrics and annotations
 from a specified album using the Genius API.
 
 Requirements:
@@ -10,6 +10,8 @@ Requirements:
 - ebooklib
 - argparse
 """
+
+# base prompt: uv run genius_2_ebook.py "The Smiths" "The Queen is Dead" --format epub --debug
 
 import os
 import sys
@@ -19,6 +21,7 @@ import requests
 from datetime import datetime
 import lyricsgenius as lg
 from ebooklib import epub
+from ebooklib.plugins.booktype import BooktypeFootnotes
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -166,6 +169,10 @@ def create_epub(album, output_format="epub"):
         <p>Released: {album.release_date_components.strftime("%d %B %Y") if hasattr(album, 'release_date_components') else 'Unknown'} <!-- Annotation: This is a note. --></p>
         <p>This ebook contains lyrics and annotations for all songs in this album.</p>
         <p>All content is sourced from Genius.com.</p>
+                    <span id="InsertNoteID_1_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_1">InsertNoteMarker</a></sup><span>
+            <ol id="InsertNote_NoteList"><li id="InsertNoteID_1">prvi footnote <span id="InsertNoteID_1_LinkBacks"><sup><a href="#InsertNoteID_1_marker1">^</a></sup></span></li>
+            <a epub:type="noteref" href="#n1">noteref</a></p>
+             <aside epub:type="footnote" id="n1"><p>These have been corrected in this EPUB3 edition.</p></aside>
     </body>
     </html>
     """
@@ -307,26 +314,26 @@ def create_epub(album, output_format="epub"):
         epub_path = f"{filename_base}.epub"
         epub.write_epub(epub_path, book)
         return epub_path
-    elif output_format.lower() == "mobi":
+    elif output_format.lower() == "azw3":
         # First save as EPUB
         epub_path = f"{filename_base}.epub"
         epub.write_epub(epub_path, book)
         
-        # Then convert to MOBI using Calibre's ebook-convert if available
+        # Then convert to AZW3 using Calibre's ebook-convert if available
         try:
-            mobi_path = f"{filename_base}.mobi"
-            os.system(f'ebook-convert "{epub_path}" "{mobi_path}"')
+            azw3_path = f"{filename_base}.azw3"
+            os.system(f'ebook-convert "{epub_path}" "{azw3_path}"')
             # Remove temporary EPUB
             os.remove(epub_path)
-            return mobi_path
+            return azw3_path
         except Exception as e:
-            print(f"Error converting to MOBI: {e}")
+            print(f"Error converting to AZW3: {e}")
             print("Keeping EPUB format instead.")
             return epub_path
     else:
         print(f"Unsupported format: {output_format}. Using EPUB instead.")
         epub_path = f"{filename_base}.epub"
-        epub.write_epub(epub_path, book)
+        epub.write_epub(epub_path, book, { "plugins" : [BooktypeFootnotes()] })
         return epub_path
 
 
@@ -336,8 +343,8 @@ def main():
     parser.add_argument("artist", help="Artist name")
     parser.add_argument("album", help="Album name")
     parser.add_argument("--api-key", help="Genius API key", default= os.getenv("GENIUS_API_KEY"))
-    parser.add_argument("--format", choices=["epub", "mobi"], default="epub", 
-                        help="Output format (epub or mobi)")
+    parser.add_argument("--format", choices=["epub", "azw3"], default="epub", 
+                        help="Output format (epub or azw3)")
     parser.add_argument("--debug", action="store_true", help="Enable debug output")
     
     args = parser.parse_args()
