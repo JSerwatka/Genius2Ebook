@@ -25,29 +25,33 @@ from ebooklib.plugins.booktype import BooktypeFootnotes
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+import html
+from typing import List, Tuple, Dict, Optional
 
-def clean_html(html_text):
-    """Remove unwanted HTML elements and clean up text."""
-    soup = BeautifulSoup(html_text, 'html.parser')
-    
-    # Remove script and style elements
-    for script in soup(["script", "style"]):
-        script.decompose()
-    
-    # Get text
-    text = soup.get_text()
-    
-    # Break into lines and remove leading and trailing space on each
-    lines = (line.strip() for line in text.splitlines())
-    
-    # Break multi-headlines into a line each
-    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-    
-    # Drop blank lines
-    text = '\n'.join(chunk for chunk in chunks if chunk)
-    
-    return text
+from unidecode import unidecode
 
+
+class LyricsAnnotator:
+    def __init__(self, annotations: List[Tuple[str, List[str]]], full_lyrics: str):
+        self.annotations = annotations
+        self.full_lyrics = full_lyrics
+        self.footnotes = '<ol id="InsertNote_NoteList">'
+        self.current_id = 1
+        
+    def annotate_lyrics(self) -> str:
+        for annotation in self.annotations:
+            fragment = unidecode(annotation[0]) if annotation[0] else None
+            note = annotation[1][0][0]
+            
+            if not fragment or not note or self.full_lyrics.find(fragment) == -1: 
+                print("Skipping annotation with empty fragment or notes")
+                continue
+            
+            self.full_lyrics = self.full_lyrics.replace(fragment, f"""{fragment}<span id="InsertNoteID_{self.current_id}_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_{self.current_id}">{self.current_id}</a></sup></span>""")
+            self.footnotes += f"""<li id="InsertNoteID_{self.current_id}">{note}<span id="InsertNoteID_{self.current_id}_LinkBacks"><sup><a href="#InsertNoteID_{self.current_id}_marker1">^</a></sup></span></li>"""
+            self.current_id += 1    
+        self.footnotes += '</ol>'
+        return self.full_lyrics + self.footnotes
 
 def sanitize_filename(filename):
     """Remove invalid characters from filename."""
@@ -61,7 +65,8 @@ def get_album_data(artist_name, album_name, api_key):
                       excluded_terms=["(Remix)", "(Live)"],
                       remove_section_headers=False,
                       verbose=True,
-                      retries=3)
+                      retries=3,
+                    )
     
     try:
         print(f"Searching for album '{album_name}' by '{artist_name}'...")
@@ -99,13 +104,9 @@ def get_album_data(artist_name, album_name, api_key):
                 song = genius.search_song(track.song.title, album.artist.name)
                 
                 if song:
-                    annotations = genius.song_annotations(song.id)
-                    
                     # Attach the song object with lyrics to the track
                     track.song = song
-                    track.annotations = annotations 
-                    
-                    break # DEBUG: TODO: remove
+                    track.annotations = genius.song_annotations(song.id) 
             except Exception as e:
                 print(f"Error fetching lyrics for {track.song.title}: {e}")
         
@@ -169,17 +170,12 @@ def create_epub(album, output_format="epub"):
         <p>Released: {album.release_date_components.strftime("%d %B %Y") if hasattr(album, 'release_date_components') else 'Unknown'} <!-- Annotation: This is a note. --></p>
         <p>This ebook contains lyrics and annotations for all songs in this album.</p>
         <p>All content is sourced from Genius.com.</p>
-                    <span id="InsertNoteID_1_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_1">InsertNoteMarker</a></sup><span>
-            <ol id="InsertNote_NoteList"><li id="InsertNoteID_1">prvi footnote <span id="InsertNoteID_1_LinkBacks"><sup><a href="#InsertNoteID_1_marker1">^</a></sup></span></li>
-            <a epub:type="noteref" href="#n1">noteref</a></p>
-             <aside epub:type="footnote" id="n1"><p>These have been corrected in this EPUB3 edition.</p></aside>
     </body>
     </html>
     """
     intro.content = intro_content
     book.add_item(intro)
     spine.append(intro)
-    
     # Create a chapter for each song
     for track_num, track in enumerate(album.tracks, 1):
         # Skip if no song or no lyrics
@@ -189,26 +185,7 @@ def create_epub(album, output_format="epub"):
         
         # Create chapter
         chapter = epub.EpubHtml(title=track.song.title, file_name=f'song_{track_num}.xhtml')
-        
-        # Get annotations if available
-        annotations = []
-        # TODO handle annotations
-        # try:
-        #     # Get song annotations from Genius
-        #     song_info = track.song
-        #     referents = song_info.referents if hasattr(song_info, 'referents') else []
-            
-        #     for ref in referents:
-        #         for annotation in ref.annotations:
-        #             if hasattr(annotation, 'body') and annotation.body and annotation.body.get('plain'):
-        #                 fragment = ref.fragment if hasattr(ref, 'fragment') else "Unknown lyric"
-        #                 body = annotation.body.get('plain', 'No annotation text')
-        #                 annotations.append({
-        #                     'fragment': fragment,
-        #                     'body': clean_html(body)
-        #                 })
-        # except Exception as e:
-        #     print(f"Error getting annotations for {track.song.title}: {e}")
+
         
         # Build chapter content
         chapter_content = f"""
@@ -222,31 +199,25 @@ def create_epub(album, output_format="epub"):
         
         # Add lyrics
         lyrics = track.song.lyrics if hasattr(track.song, 'lyrics') else ""
-        clean_lyrics = lyrics.replace('Lyrics', '', 1).strip()  # Remove the "Lyrics" header
+        lyrics_no_header = lyrics.replace('Lyrics', '', 1).strip() # Remove the "Lyrics" header 
+        lyrics_unescaped = lyrics_no_header
+        lyrics_unescaped = lyrics_no_header.replace("\'", "’").replace("\n", "\n ")
+        finall_lyrics = unidecode(lyrics_unescaped) 
+
+        
+        if (hasattr(track, 'annotations')):
+            # Add annotations
+            annotator = LyricsAnnotator(track.annotations, finall_lyrics)
+            finall_lyrics = annotator.annotate_lyrics()
+            
+                
         lyrics_html = f"""
             <div class="lyrics">
-                <pre>{clean_lyrics}</pre>
+                <pre>{finall_lyrics}</pre>
             </div>
         """
         chapter_content += lyrics_html
-        
-        # TODO: check if needed: Add annotations section if there are any
-        # if annotations:
-        #     chapter_content += """
-        #     <h2>Annotations</h2>
-        #     <div class="annotations">
-        #     """
-            
-        #     for i, annotation in enumerate(annotations, 1):
-        #         chapter_content += f"""
-        #         <div class="annotation">
-        #             <h3>Note {i}: "{annotation['fragment']}"</h3>
-        #             <p>{annotation['body']}</p>
-        #         </div>
-        #         """
-            
-        #     chapter_content += "</div>"
-        
+
         chapter_content += """
         </body>
         </html>
@@ -333,9 +304,8 @@ def create_epub(album, output_format="epub"):
     else:
         print(f"Unsupported format: {output_format}. Using EPUB instead.")
         epub_path = f"{filename_base}.epub"
-        epub.write_epub(epub_path, book, { "plugins" : [BooktypeFootnotes()] })
+        epub.write_epub(epub_path, book, { "plugins" : [BooktypeFootnotes(booktype_book=book)] })
         return epub_path
-
 
 def main():
     load_dotenv() 
