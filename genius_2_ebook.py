@@ -32,16 +32,13 @@ from unidecode import unidecode
 from lyricsgenius.genius import Genius as GeniusOriginal
 
 
-# TODO Genius override
-# This     def song_annotations(self, song_id, text_format=None): should also take page arg and get next page untile it is done, als maybe per page should be larger
-#  known issue https://github.com/johnwmillr/LyricsGenius/issues/245
-
-
 # Don't change the name of the class
 # there is a bug in PublicAPI class there that prevents Genius class inheritance - doesn't set headers properly
 # the code part that is buggy -> public_api_constructor = False if self.__class__.__name__ == 'Genius' else True
 class Genius(GeniusOriginal):
-    # pass
+    # override song_annotations
+    # This     def song_annotations(self, song_id, text_format=None): should also take page arg and get next page untile it is done, als maybe per page should be larger
+    #  known issue https://github.com/johnwmillr/LyricsGenius/issues/245
     def song_annotations(self, song_id, text_format=None):
         page_num = 1
         all_annotations = []  # list of tuples(fragment, annotations[])
@@ -80,8 +77,8 @@ class LyricsAnnotator:
                 print("Skipping annotation with empty fragment or notes")
                 continue
             
-            self.full_lyrics = self.full_lyrics.replace(fragment, f"""<strong>{fragment}</strong><span id="InsertNoteID_{self.current_id}_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_{self.current_id}">#</a></sup></span>""")
-            self.footnotes += f"""<li id="InsertNoteID_{self.current_id}">{note}<span id="InsertNoteID_{self.current_id}_LinkBacks"><sup><a href="#InsertNoteID_{self.current_id}_marker1">^</a></sup></span></li>"""
+            self.full_lyrics = self.full_lyrics.replace(fragment, f"""<strong>{fragment}</strong><span id="InsertNoteID_{self.current_id}_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_{self.current_id}">➜</a></sup></span>""")
+            self.footnotes += f"""<li id="InsertNoteID_{self.current_id}">{note}<span id="InsertNoteID_{self.current_id}_LinkBacks"><sup><a href="#InsertNoteID_{self.current_id}_marker1">↩</a></sup></span></li>"""
             self.current_id += 1    
         self.footnotes += '</ol>'
         return self.full_lyrics + self.footnotes
