@@ -11,7 +11,7 @@ Requirements:
 - argparse
 """
 
-# base prompt: uv run genius_2_ebook.py "The Smiths" "The Queen is Dead" --format epub --debug
+# base prompt: uv run genius_2_ebook.py "The Smiths" "The Queen is Dead" --format azw3 --debug
 
 import os
 import sys
@@ -19,7 +19,7 @@ import argparse
 import re
 import requests
 from datetime import datetime
-import lyricsgenius as lg
+# import lyricsgenius as lg
 from ebooklib import epub
 from ebooklib.plugins.booktype import BooktypeFootnotes
 from bs4 import BeautifulSoup
@@ -29,7 +29,40 @@ import html
 from typing import List, Tuple, Dict, Optional
 
 from unidecode import unidecode
+from lyricsgenius.genius import Genius as GeniusOriginal
 
+
+# TODO Genius override
+# This     def song_annotations(self, song_id, text_format=None): should also take page arg and get next page untile it is done, als maybe per page should be larger
+#  known issue https://github.com/johnwmillr/LyricsGenius/issues/245
+
+
+# Don't change the name of the class
+# there is a bug in PublicAPI class there that prevents Genius class inheritance - doesn't set headers properly
+# the code part that is buggy -> public_api_constructor = False if self.__class__.__name__ == 'Genius' else True
+class Genius(GeniusOriginal):
+    # pass
+    def song_annotations(self, song_id, text_format=None):
+        page_num = 1
+        all_annotations = []  # list of tuples(fragment, annotations[])
+        
+        while True:
+            reponse = self.referents(song_id=song_id,
+                text_format=text_format, page=page_num)
+
+            referents = reponse.get('referents', [])
+            
+            if not referents:
+                break
+
+            for r in referents:
+                fragment = r["fragment"]
+                annotations = []
+                for a in r["annotations"]:
+                    annotations.append([x for x in a["body"].values()])
+                all_annotations.append((fragment, annotations))
+            page_num += 1
+        return all_annotations
 
 class LyricsAnnotator:
     def __init__(self, annotations: List[Tuple[str, List[str]]], full_lyrics: str):
@@ -47,7 +80,7 @@ class LyricsAnnotator:
                 print("Skipping annotation with empty fragment or notes")
                 continue
             
-            self.full_lyrics = self.full_lyrics.replace(fragment, f"""{fragment}<span id="InsertNoteID_{self.current_id}_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_{self.current_id}">{self.current_id}</a></sup></span>""")
+            self.full_lyrics = self.full_lyrics.replace(fragment, f"""<strong>{fragment}</strong><span id="InsertNoteID_{self.current_id}_marker1" class="InsertNoteMarker"><sup><a href="#InsertNoteID_{self.current_id}">#</a></sup></span>""")
             self.footnotes += f"""<li id="InsertNoteID_{self.current_id}">{note}<span id="InsertNoteID_{self.current_id}_LinkBacks"><sup><a href="#InsertNoteID_{self.current_id}_marker1">^</a></sup></span></li>"""
             self.current_id += 1    
         self.footnotes += '</ol>'
@@ -60,7 +93,7 @@ def sanitize_filename(filename):
 
 def get_album_data(artist_name, album_name, api_key):
     """Fetch album data from Genius."""
-    genius = lg.Genius(api_key, 
+    genius = Genius(api_key, 
                       skip_non_songs=True, 
                       excluded_terms=["(Remix)", "(Live)"],
                       remove_section_headers=False,
@@ -122,7 +155,6 @@ def get_album_data(artist_name, album_name, api_key):
         print(f"Error: {e}")
         print("Try checking the spelling of the artist and album names.")
         return None
-
 
 def create_epub(album, output_format="epub"):
     """Create an ebook from album data."""
@@ -255,6 +287,7 @@ def create_epub(album, output_format="epub"):
         margin: 1em 0;
         line-height: 1.5;
     }
+
     .annotations {
         margin-top: 2em;
         border-top: 1px solid #ccc;

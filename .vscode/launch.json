@@ -11,6 +11,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": ["The Smiths", "The Queen is Dead", "--format", "azw3", "--debug"],
+            "justMyCode": false
         }
     ]
 }
